@@ -48,7 +48,7 @@ class MedicalRecordGenerator:
                         "temperature": 0.3,  # Mais conservador para prontuários
                         "top_p": 0.95,
                         "top_k": 40,
-                        "max_output_tokens": 8192,
+                        "max_output_tokens": 16384,
                     }
                 )
                 self.logger.info("API configurada com sucesso para prontuários")

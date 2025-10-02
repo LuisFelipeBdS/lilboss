@@ -49,13 +49,15 @@ class GeminiHandler:
             genai.configure(api_key=api_key)
             
             # Inicializar modelo
+            # Limite real do gemini-2.0-flash-exp: 65.536 tokens de saída
+            # Usando ~50% do limite para balancear qualidade e custo
             self.model = genai.GenerativeModel(
                 model_name=self.model_name,
                 generation_config={
                     "temperature": 0.7,
                     "top_p": 0.95,
                     "top_k": 40,
-                    "max_output_tokens": 8192,
+                    "max_output_tokens": 32768,  # ~50% do limite (65.536)
                 }
             )
             
@@ -81,9 +83,10 @@ class GeminiHandler:
         """
         prompt = f"""Você é um assistente médico educacional especializado em {specialty}.
 
-Sua função é auxiliar estudantes de medicina e profissionais em formação com análise de casos clínicos.
+Sua função é auxiliar estudantes de medicina e profissionais em formação com análise de casos clínicos de forma EDUCACIONAL.
 
 IMPORTANTE:
+- Esta é uma ferramenta EDUCACIONAL, não para uso clínico real
 - Forneça diagnósticos diferenciais baseados EXCLUSIVAMENTE nos dados apresentados
 - Seja didático e explique o raciocínio clínico
 - Atribua probabilidades realistas baseadas nas informações disponíveis
@@ -100,8 +103,16 @@ Por favor, analise este caso e forneça:
 2. Para cada diagnóstico, forneça:
    - Nome do diagnóstico
    - Probabilidade estimada (0-100%) baseada APENAS nos dados apresentados
-   - Justificativa clínica (evidências a favor e contra)
-   - Dados clínicos principais que suportam esta hipótese
+   - Justificativa clínica CONCISA (máximo 3-4 linhas)
+   - 3-5 evidências a favor
+   - 1-2 evidências contra
+   - 2-3 dados clínicos principais
+
+**IMPORTANTE PARA EVITAR TRUNCAMENTO:**
+- Justificativas: máximo 250 caracteres cada
+- Evidências: frases curtas e objetivas
+- Observações: máximo 150 caracteres
+- Dados insuficientes: lista breve
 
 FORMATO DE RESPOSTA (retorne APENAS JSON válido, sem markdown):
 {{
@@ -109,32 +120,34 @@ FORMATO DE RESPOSTA (retorne APENAS JSON válido, sem markdown):
     {{
       "nome": "Nome do Diagnóstico 1",
       "probabilidade": 75,
-      "justificativa": "Explicação detalhada do raciocínio clínico...",
+      "justificativa": "Explicação CONCISA do raciocínio clínico (max 250 chars)",
       "evidencias_favor": ["Evidência 1", "Evidência 2", "Evidência 3"],
       "evidencias_contra": ["Contra 1", "Contra 2"],
-      "dados_principais": ["Dado relevante 1", "Dado relevante 2"]
+      "dados_principais": ["Dado 1", "Dado 2"]
     }},
     {{
       "nome": "Nome do Diagnóstico 2",
       "probabilidade": 60,
-      "justificativa": "...",
+      "justificativa": "Explicação CONCISA (max 250 chars)",
       "evidencias_favor": ["..."],
       "evidencias_contra": ["..."],
       "dados_principais": ["..."]
     }}
   ],
-  "observacoes": "Considerações adicionais importantes sobre o caso",
-  "dados_insuficientes": ["Lista de informações que faltam para melhor análise"],
-  "nivel_confianca": "alto/médio/baixo - baseado na qualidade e quantidade de dados"
+  "observacoes": "Considerações importantes BREVES (max 150 chars)",
+  "dados_insuficientes": ["Info faltante 1", "Info faltante 2"],
+  "nivel_confianca": "alto/médio/baixo"
 }}
 
-Retorne SOMENTE o JSON, sem formatação markdown, sem ```json, apenas o objeto JSON puro."""
+Retorne SOMENTE o JSON, sem formatação markdown, sem ```json, apenas o objeto JSON puro.
+SEJA CONCISO para evitar truncamento da resposta.
         
         return prompt
     
     def _parse_json_response(self, response_text: str) -> Optional[Dict]:
         """
         Parseia a resposta JSON do modelo, removendo markdown se necessário.
+        Detecta e trata JSON truncado.
         
         Args:
             response_text: Texto da resposta do modelo
@@ -161,10 +174,61 @@ Retorne SOMENTE o JSON, sem formatação markdown, sem ```json, apenas o objeto 
             return json.loads(clean_text)
             
         except json.JSONDecodeError as e:
-            st.error(f"❌ Erro ao parsear resposta JSON: {str(e)}")
-            st.code(response_text, language="text")
+            error_msg = str(e)
+            
+            # Detectar JSON truncado (unterminated string/array/object)
+            if "Unterminated" in error_msg or "Expecting" in error_msg:
+                self.logger.warning(f"JSON truncado detectado: {error_msg}")
+                st.warning(f"⚠️ **Resposta incompleta detectada**")
+                st.info("""
+                **O que aconteceu?**
+                A resposta foi muito longa e foi cortada no meio.
+                
+                **Solução:**
+                1. Clique em "Enviar e Analisar" novamente
+                2. O sistema tentará gerar uma resposta mais concisa
+                3. Se persistir, adicione informações aos poucos
+                
+                **Técnico:** JSON truncado - max_output_tokens atingido
+                """)
+                
+                # Tentar salvar diagnósticos parciais se possível
+                try:
+                    # Tentar completar o JSON minimamente
+                    if '"diagnosticos": [' in clean_text:
+                        # Fechar arrays e objetos abertos
+                        clean_text = clean_text.rstrip(',\n ')
+                        # Contar abertura e fechamento
+                        open_braces = clean_text.count('{')
+                        close_braces = clean_text.count('}')
+                        open_brackets = clean_text.count('[')
+                        close_brackets = clean_text.count(']')
+                        
+                        # Adicionar fechamentos necessários
+                        for _ in range(open_braces - close_braces):
+                            clean_text += '\n}'
+                        for _ in range(open_brackets - close_brackets):
+                            clean_text += '\n]'
+                        
+                        # Tentar parsear novamente
+                        partial_result = json.loads(clean_text)
+                        
+                        if 'diagnosticos' in partial_result and partial_result['diagnosticos']:
+                            st.success(f"✅ Recuperados {len(partial_result['diagnosticos'])} diagnósticos parciais")
+                            return partial_result
+                except:
+                    pass
+            else:
+                st.error(f"❌ Erro ao parsear resposta JSON: {error_msg}")
+            
+            # Mostrar JSON problemático em expander para debug
+            with st.expander("🔍 Ver resposta problemática (Debug)", expanded=False):
+                st.code(response_text[:3000] + "..." if len(response_text) > 3000 else response_text, language="text")
+            
             return None
+            
         except Exception as e:
+            self.logger.error("Erro inesperado ao processar resposta", error=e)
             st.error(f"❌ Erro inesperado ao processar resposta: {str(e)}")
             return None
     
@@ -296,12 +360,12 @@ Retorne SOMENTE o JSON, sem formatação markdown, sem ```json, apenas o objeto 
         try:
             # Criar modelo específico para sugestões (mais rápido)
             suggestions_model = genai.GenerativeModel(
-                model_name="gemini-2.5-flash",  # Modelo mais rápido para sugestões
+                model_name="gemini-2.0-flash-exp",  # Modelo mais rápido para sugestões
                 generation_config={
                     "temperature": 0.8,
                     "top_p": 0.95,
                     "top_k": 40,
-                    "max_output_tokens": 4096,
+                    "max_output_tokens": 8192,  # Aumentado para sugestões mais completas
                 }
             )
             
