@@ -141,6 +141,7 @@ FORMATO DE RESPOSTA (retorne APENAS JSON válido, sem markdown):
 
 Retorne SOMENTE o JSON, sem formatação markdown, sem ```json, apenas o objeto JSON puro.
 SEJA CONCISO para evitar truncamento da resposta.
+"""
         
         return prompt
     
