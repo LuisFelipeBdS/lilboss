@@ -22,7 +22,7 @@ class GeminiHandler:
         """
         Inicializa o handler e configura a API do Gemini.
         """
-        self.model_name = "gemini-2.5"
+        self.model_name = "gemini-2.5-flash"
         self.model = None
         self.logger = get_logger()
         self._configure_api()

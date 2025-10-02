@@ -327,6 +327,51 @@ def create_tooltip(text, tooltip_text):
     """Cria um texto com tooltip explicativo."""
     return f'{text} <span class="tooltip" data-tooltip="{tooltip_text}">ℹ️</span>'
 
+def format_timestamp(timestamp, format_str='%H:%M'):
+    """
+    Formata timestamp de forma segura.
+    Aceita datetime object ou string ISO format.
+    
+    Args:
+        timestamp: datetime object ou string
+        format_str: Formato de saída (default: '%H:%M')
+    
+    Returns:
+        String formatada
+    """
+    if timestamp is None:
+        return datetime.now().strftime(format_str)
+    
+    # Se já é datetime, formatar
+    if isinstance(timestamp, datetime):
+        return timestamp.strftime(format_str)
+    
+    # Se é string, tentar converter
+    if isinstance(timestamp, str):
+        try:
+            # Tentar parsear ISO format (com ou sem microsegundos)
+            timestamp_clean = timestamp.replace('Z', '+00:00')
+            
+            # Tentar com microsegundos
+            if '.' in timestamp_clean:
+                dt = datetime.fromisoformat(timestamp_clean)
+            else:
+                dt = datetime.fromisoformat(timestamp_clean)
+            
+            return dt.strftime(format_str)
+        except Exception:
+            # Se falhar completamente, tentar pandas
+            try:
+                import pandas as pd
+                dt = pd.to_datetime(timestamp)
+                return dt.strftime(format_str)
+            except:
+                # Se tudo falhar, retornar hora atual
+                return datetime.now().strftime(format_str)
+    
+    # Fallback
+    return datetime.now().strftime(format_str)
+
 def export_session_history():
     """Exporta o histórico completo da sessão em formato JSON."""
     history_data = {
@@ -909,9 +954,10 @@ with st.sidebar:
         with st.expander("📋 Ver Consultas Anteriores", expanded=False):
             if 'consultation_history' in st.session_state and st.session_state.consultation_history:
                 for consultation in reversed(st.session_state.consultation_history[-5:]):  # Últimas 5
+                    time_str = format_timestamp(consultation.get('timestamp'), '%d/%m/%Y %H:%M')
                     st.markdown(f"""
                     **Consulta #{consultation['id']}** - {consultation['specialty']}  
-                    🕒 {consultation['timestamp'].strftime('%d/%m/%Y %H:%M')}  
+                    🕒 {time_str}  
                     🎯 {consultation['top_diagnostic']}  
                     📊 {consultation['num_diagnostics']} diagnósticos
                     """)
@@ -936,10 +982,12 @@ def main():
                 # Exibir mensagens em ordem cronológica
                 for msg in st.session_state.chat_history[-10:]:  # Últimas 10 mensagens
                     if msg['role'] == 'user':
-                        st.markdown(f"**👤 Você ({msg['timestamp'].strftime('%H:%M')})**")
+                        time_str = format_timestamp(msg.get('timestamp'))
+                        st.markdown(f"**👤 Você ({time_str})**")
                         st.info(msg['content'])
                     else:
-                        st.markdown(f"**🤖 Sistema ({msg['timestamp'].strftime('%H:%M')})**")
+                        time_str = format_timestamp(msg.get('timestamp'))
+                        st.markdown(f"**🤖 Sistema ({time_str})**")
                         st.success(msg['content'])
                 st.markdown("---")
         
