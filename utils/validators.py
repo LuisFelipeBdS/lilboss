@@ -13,47 +13,63 @@ import re
 def validate_gemini_api_key() -> Tuple[bool, Optional[str]]:
     """
     Valida se a API key do Gemini está configurada e é válida.
+    Compatível com Streamlit Cloud e execução local.
     
     Returns:
         Tupla (is_valid: bool, error_message: str)
     """
-    # Verificar se existe no secrets
-    if not hasattr(st, 'secrets'):
-        return False, "Arquivo secrets.toml não encontrado"
-    
-    if 'GEMINI_API_KEY' not in st.secrets:
-        return False, "GEMINI_API_KEY não está configurada em secrets.toml"
-    
-    api_key = st.secrets['GEMINI_API_KEY']
-    
-    # Verificar se não está vazia
-    if not api_key or not api_key.strip():
-        return False, "GEMINI_API_KEY está vazia"
-    
-    # Verificar formato básico (começa com AIza ou outras variações do Google)
-    if not (api_key.startswith('AIza') or len(api_key) > 30):
-        return False, "GEMINI_API_KEY parece ter formato inválido"
-    
-    # Tentar configurar e fazer teste simples
+    # Tentar obter API key do secrets (funciona tanto local quanto cloud)
     try:
-        genai.configure(api_key=api_key)
+        api_key = st.secrets.get('GEMINI_API_KEY', None)
         
-        # Tentar listar modelos como teste
-        list(genai.list_models())
+        # Se não encontrou com get, tentar acesso direto
+        if api_key is None:
+            try:
+                api_key = st.secrets['GEMINI_API_KEY']
+            except (KeyError, AttributeError):
+                api_key = None
         
-        return True, None
+        # Verificar se conseguiu obter a key
+        if api_key is None:
+            return False, "GEMINI_API_KEY não está configurada. Configure em Settings > Secrets (Streamlit Cloud) ou .streamlit/secrets.toml (local)"
         
-    except Exception as e:
-        error_msg = str(e)
+        # Verificar se não está vazia
+        if not api_key or not isinstance(api_key, str) or not api_key.strip():
+            return False, "GEMINI_API_KEY está vazia ou inválida"
         
-        if "API_KEY_INVALID" in error_msg or "invalid" in error_msg.lower():
-            return False, "API key inválida. Verifique se está correta."
-        elif "quota" in error_msg.lower() or "limit" in error_msg.lower():
-            return False, "Limite de uso da API excedido. Aguarde ou use outra key."
-        elif "permission" in error_msg.lower():
-            return False, "Permissão negada. Verifique se a API está habilitada."
-        else:
-            return False, f"Erro ao validar API key: {error_msg}"
+        # Verificar formato básico (começa com AIza ou outras variações do Google)
+        api_key = api_key.strip()
+        if not (api_key.startswith('AIza') or len(api_key) > 30):
+            return False, "GEMINI_API_KEY parece ter formato inválido"
+        
+        # Tentar configurar e fazer teste simples
+        try:
+            genai.configure(api_key=api_key)
+            
+            # Tentar listar modelos como teste (mais leve que gerar conteúdo)
+            models = list(genai.list_models())
+            
+            if not models:
+                return False, "API configurada mas nenhum modelo disponível"
+            
+            return True, None
+            
+        except Exception as e:
+            error_msg = str(e)
+            
+            if "API_KEY_INVALID" in error_msg or "invalid" in error_msg.lower():
+                return False, "API key inválida. Verifique se está correta no Streamlit Cloud (Settings > Secrets)."
+            elif "quota" in error_msg.lower() or "limit" in error_msg.lower():
+                return False, "Limite de uso da API excedido. Aguarde ou use outra key."
+            elif "permission" in error_msg.lower() or "403" in error_msg:
+                return False, "Permissão negada. Verifique se a API Gemini está habilitada no Google Cloud."
+            elif "404" in error_msg or "not found" in error_msg.lower():
+                return False, "Endpoint da API não encontrado. Verifique sua conexão com a internet."
+            else:
+                return False, f"Erro ao validar API key: {error_msg[:200]}"
+    
+    except Exception as outer_e:
+        return False, f"Erro ao acessar secrets: {str(outer_e)[:200]}"
 
 
 def validate_context_for_analysis(context: str, min_chars: int = 50) -> Tuple[bool, Optional[str]]:

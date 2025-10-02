@@ -395,18 +395,68 @@ api_valid, api_error = validate_gemini_api_key()
 if not api_valid:
     logger.error(f"Validação de API key falhou: {api_error}")
     st.error(f"⚠️ {api_error}")
-    st.info("""
-    **Como configurar:**
-    1. Acesse [Google AI Studio](https://aistudio.google.com/apikey)
-    2. Crie uma nova API Key
-    3. Crie o diretório `.streamlit` no projeto
-    4. Crie o arquivo `secrets.toml` dentro dele
-    5. Adicione: `GEMINI_API_KEY = "sua_chave_aqui"`
     
+    # Criar tabs para instruções local vs cloud
+    tab1, tab2 = st.tabs(["🌐 Streamlit Cloud", "💻 Execução Local"])
+    
+    with tab1:
+        st.markdown("""
+        ### Configurar no Streamlit Cloud:
+        
+        1. **Obter API Key:**
+           - Acesse [Google AI Studio](https://aistudio.google.com/apikey)
+           - Clique em "Create API Key"
+           - Copie a chave gerada
+        
+        2. **Configurar no Streamlit Cloud:**
+           - Vá para o dashboard do seu app
+           - Clique em **⚙️ Settings** (canto superior direito)
+           - Clique em **Secrets** no menu lateral
+           - Cole o seguinte conteúdo:
+           ```toml
+           GEMINI_API_KEY = "sua_chave_aqui"
+           ```
+           - Clique em **Save**
+           - Reinicie o app (botão "Reboot app")
+        
+        3. **Verificar:**
+           - Aguarde o app reiniciar
+           - A validação deve passar automaticamente
+        """)
+        
+        st.warning("⚠️ **Importante**: Após salvar os secrets, é necessário reiniciar o app!")
+    
+    with tab2:
+        st.markdown("""
+        ### Configurar Localmente:
+        
+        1. **Obter API Key:**
+           - Acesse [Google AI Studio](https://aistudio.google.com/apikey)
+           - Crie uma nova API Key
+        
+        2. **Configurar Localmente:**
+           - Crie o diretório `.streamlit` na raiz do projeto
+           - Crie o arquivo `secrets.toml` dentro dele
+           - Adicione:
+           ```toml
+           GEMINI_API_KEY = "sua_chave_aqui"
+           ```
+        
+        3. **Executar:**
+           ```bash
+           streamlit run app.py
+           ```
+        """)
+    
+    st.divider()
+    
+    st.info("""
     **Troubleshooting:**
-    - Verifique se a API key está correta
-    - Confirme se o Gemini API está habilitado no seu projeto Google
-    - Certifique-se de que não excedeu os limites gratuitos
+    - ✅ Verifique se a API key está correta (começa com `AIza...`)
+    - ✅ Confirme se o Gemini API está habilitado no Google Cloud
+    - ✅ Certifique-se de que não excedeu os limites gratuitos
+    - ✅ No Streamlit Cloud: Reinicie o app após configurar secrets
+    - ✅ Aguarde alguns segundos após reiniciar para validação
     """)
     st.stop()
 else:
