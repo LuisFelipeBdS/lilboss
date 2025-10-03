@@ -972,7 +972,7 @@ def main():
     
     # Coluna esquerda (40%) - Input de dados da consulta
     with col_left:
-        st.markdown(create_tooltip("## 📝 Informações do Caso", "Adicione dados do paciente progressivamente. O sistema analisará e atualizará os diagnósticos automaticamente."), unsafe_allow_html=True)
+        st.markdown(create_tooltip("### 📝 Informações do Caso", "Adicione dados do paciente progressivamente. O sistema analisará e atualizará os diagnósticos automaticamente."), unsafe_allow_html=True)
         
         # Mostrar histórico do chat/contexto
         chat_container = st.container()
@@ -1056,7 +1056,7 @@ Digite Enter ou clique em Enviar para processar.""",
     
     # Coluna central (30%) - Ranking de probabilidades diagnósticas
     with col_center:
-        st.markdown(create_tooltip("## 📊 Hipóteses Diagnósticas", "Diagnósticos diferenciais ranqueados por probabilidade baseados nos dados fornecidos"), unsafe_allow_html=True)
+        st.markdown(create_tooltip("### 📊 Hipóteses Diagnósticas", "Diagnósticos diferenciais ranqueados por probabilidade baseados nos dados fornecidos"), unsafe_allow_html=True)
         
         # Exibir diagnósticos ou placeholder
         if st.session_state.diagnosticos:
@@ -1107,7 +1107,7 @@ Digite Enter ou clique em Enviar para processar.""",
     
     # Coluna direita (30%) - Sugestões
     with col_right:
-        st.markdown(create_tooltip("## 💡 Sugestões Clínicas", "Perguntas, exames e condutas recomendadas para investigação do caso"), unsafe_allow_html=True)
+        st.markdown(create_tooltip("### 💡 Sugestões Clínicas", "Perguntas, exames e condutas recomendadas para investigação do caso"), unsafe_allow_html=True)
         
         # Exibir sugestões usando a função dedicada
         if st.session_state.sugestoes:
